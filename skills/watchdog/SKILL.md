@@ -36,14 +36,17 @@ A repair counts only when Hermes's own record agrees: the incident left
 `detected`/`alerted`, or a later execution of that job succeeded. "Steps ran" is
 not a repair.
 
-## Author a playbook
+## Playbooks
 
-Built-ins exist for the failure types core classifies (rerun once on
-timeout/delivery/agent, pause+escalate on script, escalate on auth/config/unknown).
-A user playbook wins at equal specificity:
+Built-ins exist for the failure types core classifies (rerun once on timeout;
+escalate on delivery and agent failures, because a rerun repeats the job's sends;
+pause+escalate on script; escalate on auth/config/unknown). `watchdog_runbooks`
+lists them. Saving a playbook through the tool is turned off: a person adds a
+playbook file to the plugin's `playbooks/` folder, and it wins at equal
+specificity. Example file:
 
 ```
-watchdog_runbooks action=save playbook={
+{
   "id": "site-down-restart",
   "match": {"error_contains": "connection refused"},
   "steps": [

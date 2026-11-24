@@ -67,6 +67,17 @@ class PlaybookTests(unittest.TestCase):
         self.assertEqual(book["id"], "builtin-rerun-timeout")
         self.assertEqual([s["verb"] for s in book["steps"]], ["rerun_job"])
 
+    def test_delivery_and_agent_failures_escalate_without_a_rerun(self):
+        # A rerun repeats whatever the job already sent, so these are handed to a person.
+        books = playbooks.all_playbooks(None)
+        ids = {b["id"] for b in books}
+        self.assertNotIn("builtin-rerun-delivery", ids)
+        self.assertNotIn("builtin-rerun-agent", ids)
+        for ftype in ("delivery", "agent"):
+            book = playbooks.match_playbook(_incident(ftype), books)
+            self.assertEqual(book["id"], f"builtin-escalate-{ftype}")
+            self.assertEqual([s["verb"] for s in book["steps"]], ["escalate"])
+
     def test_auth_escalates(self):
         books = playbooks.all_playbooks(None)
         book = playbooks.match_playbook(_incident("auth", error="401 unauthorized"), books)
@@ -269,6 +280,33 @@ class IncidentExplanationTests(unittest.TestCase):
         self.assertIn("ModuleNotFoundError", d["what"])
 
 
+class RunbooksToolTests(unittest.TestCase):
+    def _plugin(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "watchdog_tool_pkg", ROOT / "__init__.py", submodule_search_locations=[str(ROOT)])
+        mod = importlib.util.module_from_spec(spec)
+        sys.modules["watchdog_tool_pkg"] = mod
+        spec.loader.exec_module(mod)
+        return mod
+
+    def test_save_is_refused_and_writes_nothing(self):
+        import json as _json
+        plugin = self._plugin()
+        with tempfile.TemporaryDirectory() as tmp, \
+                patch.object(plugin, "_data_dir", lambda: Path(tmp)):
+            out = _json.loads(plugin._runbooks({"action": "save", "playbook": {
+                "id": "rerun-all", "match": {}, "steps": [{"verb": "rerun_job"}]}}))
+            self.assertFalse(out["success"])
+            self.assertIn("turned off", out["error"])
+            self.assertFalse((Path(tmp) / "playbooks").exists())
+            listed = _json.loads(plugin._runbooks({}))
+            self.assertTrue(listed["success"])
+        schema = plugin._RUNBOOKS_SCHEMA["parameters"]["properties"]
+        self.assertEqual(schema["action"]["enum"], ["list"])
+        self.assertNotIn("playbook", schema)
+
+
 class ToolPlaybookSafetyTests(unittest.TestCase):
     def test_check_steps_are_refused_from_the_tool(self):
         err = playbooks.tool_playbook_error({
@@ -317,11 +355,14 @@ class AgentHandoffTests(unittest.TestCase):
         self.assertIn("/tmp/out.log", prompt)
         self.assertIn("do not simply re-run the job", prompt)
         self.assertIn("what a person must change", prompt)
+        self.assertIn("Do not repeat anything the job sends", prompt)
+        self.assertNotIn("Hermes", prompt)
 
     def test_prompt_for_watchdogs_own_check_asks_to_confirm_not_repair(self):
         prompt = handoff.build_prompt({"job_id": "ee1", "job_name": "Silent repair sweep (cron incidents)"})
         self.assertIn("not one of the user's jobs", prompt)
-        self.assertIn("Hermes restart", prompt)
+        self.assertIn("restart of the assistant", prompt)
+        self.assertNotIn("Hermes", prompt)
 
     def test_handoff_without_a_job_is_refused_not_guessed(self):
         self.assertFalse(handoff.hand_off({"incident_id": "i1", "job_id": ""})["ok"])

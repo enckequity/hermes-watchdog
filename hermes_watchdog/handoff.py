@@ -29,19 +29,21 @@ def build_prompt(incident: Dict[str, Any], job: Optional[Dict[str, Any]] = None)
         f"The scheduled job \"{name}\" ({job_id}) failed" + (f" at {when}." if when else "."),
     ]
     if error:
-        lines.append(f"Hermes recorded this failure: {error}")
+        lines.append(f"The recorded failure: {error}")
     else:
-        lines.append("Hermes stored no error text for the failure.")
+        lines.append("No error text was recorded for the failure.")
     if output_file:
         lines.append(f"The run's own output is at {output_file} — read it before deciding anything.")
     if self_check:
         lines.append(
-            "This is Hermes Watchdog's own check job, not one of the user's jobs. Confirm it is "
-            "healthy now (a Hermes restart is the usual cause) and close the incident if so."
+            "This is the watchdog's own check job, not one of the user's jobs. Confirm it is "
+            "healthy now (a restart of the assistant is the usual cause) and close the incident if so."
         )
     else:
         lines += [
             "Find the actual cause and fix it — do not simply re-run the job and declare success.",
+            "Do not repeat anything the job sends or posts (messages, emails, posts) while you "
+            "diagnose; whatever went out before the failure may already have been delivered.",
             "If it cannot be fixed from here, say plainly what a person must change.",
         ]
     lines.append(
@@ -65,5 +67,5 @@ def hand_off(incident: Dict[str, Any], job: Optional[Dict[str, Any]] = None) -> 
         log.debug("watchdog: hand-off failed: %s", exc)
         return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
     if not result.get("success"):
-        return {"ok": False, "error": str(result.get("error") or "Hermes refused the run")}
+        return {"ok": False, "error": str(result.get("error") or "the run was refused")}
     return {"ok": True, "job_id": job_id, "started": True}
