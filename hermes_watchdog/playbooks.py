@@ -52,6 +52,14 @@ CHECK_TOOL_ERROR = (
 )
 
 
+# Saving playbooks through the tool is off: a model-written playbook could add rerun_job for
+# any failure type, and a rerun repeats the job's sends. Playbook files are written by a person.
+TOOL_SAVE_DISABLED = (
+    "saving playbooks through the tool is turned off in this workspace; a person can add a "
+    "playbook file to the plugin's playbooks folder instead"
+)
+
+
 def tool_playbook_error(raw: Dict[str, Any]) -> Optional[str]:
     """Why the model may not save this playbook, or None when it may."""
     import re as _re
@@ -76,21 +84,21 @@ BUILTIN_PLAYBOOKS: List[Dict[str, Any]] = [
         "escalate_on_fail": True,
     },
     {
-        "id": "builtin-rerun-delivery",
+        "id": "builtin-escalate-delivery",
         "source": "builtin",
-        "description": "A delivery failure is the message, not the work: rerun the job.",
+        "description": "A rerun would repeat the job's sends: hand the delivery failure to a person.",
         "match": {"failure_type": "delivery"},
-        "steps": [{"verb": "rerun_job"}],
-        "max_attempts_per_day": 2,
+        "steps": [{"verb": "escalate"}],
+        "max_attempts_per_day": 1,
         "escalate_on_fail": True,
     },
     {
-        "id": "builtin-rerun-agent",
+        "id": "builtin-escalate-agent",
         "source": "builtin",
-        "description": "Model/provider hiccups: one clean rerun usually lands.",
+        "description": "A rerun would repeat whatever the job already sent: escalate, don't retry.",
         "match": {"failure_type": "agent"},
-        "steps": [{"verb": "rerun_job"}],
-        "max_attempts_per_day": 2,
+        "steps": [{"verb": "escalate"}],
+        "max_attempts_per_day": 1,
         "escalate_on_fail": True,
     },
     {

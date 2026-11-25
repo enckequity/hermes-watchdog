@@ -56,18 +56,7 @@ def _runbooks(args: Dict[str, Any], **_: Any) -> str:
     action = str(args.get("action") or "list")
     data_dir = _data_dir()
     if action == "save":
-        raw = args.get("playbook")
-        if not isinstance(raw, dict):
-            return _json({"success": False, "error": "playbook must be a JSON object"})
-        refused = playbooks.tool_playbook_error(raw)
-        if refused:
-            return _json({"success": False, "error": refused})
-        pid = str(raw.get("id") or "").strip()
-        folder = data_dir / "playbooks"
-        folder.mkdir(parents=True, exist_ok=True)
-        path = folder / f"{pid}.json"
-        path.write_text(json.dumps(raw, indent=2) + "\n", encoding="utf-8")
-        return _json({"success": True, "saved": str(path)})
+        return _json({"success": False, "error": playbooks.TOOL_SAVE_DISABLED})
     return _json({
         "success": True,
         "data_dir": str(data_dir / "playbooks"),
@@ -113,21 +102,12 @@ _RUNBOOKS_SCHEMA = {
     "name": "watchdog_runbooks",
     "description": (
         "List the repair playbooks in force (user-defined + built-in) with their match rules "
-        "and steps, or save a new one. A playbook's 'check' step runs an argv list, so a saved "
-        "playbook executes commands on this machine."
+        "and steps. Read-only: playbooks are added as files by a person, not through this tool."
     ),
     "parameters": {
         "type": "object",
         "properties": {
-            "action": {"type": "string", "enum": ["list", "save"], "description": "Default: list."},
-            "playbook": {
-                "type": "object",
-                "description": (
-                    "For action=save: {id, match:{failure_type|error_contains|job_name_contains|"
-                    "job_id}, steps:[{verb:'rerun_job'|'pause_job'|'check'|'escalate', argv?, "
-                    "timeout?}], max_attempts_per_day?, escalate_on_fail?}"
-                ),
-            },
+            "action": {"type": "string", "enum": ["list"], "description": "Default: list."},
         },
         "required": [],
     },
@@ -204,7 +184,7 @@ def register(ctx) -> None:
     )
     ctx.register_tool(
         name="watchdog_runbooks", toolset="watchdog", schema=_RUNBOOKS_SCHEMA,
-        handler=_runbooks, description="List or save repair playbooks.",
+        handler=_runbooks, description="List repair playbooks.",
         emoji="📕",
     )
     ctx.register_hook("on_session_end", _on_session_end)
