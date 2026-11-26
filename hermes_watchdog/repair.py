@@ -216,13 +216,18 @@ def cycle(
     dry_run: bool = False,
     data_dir=None,
     max_incidents: int = MAX_JOBS_PER_CYCLE,
+    extra_playbooks: Optional[List[Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
-    """Run one repair cycle. Returns a report the tools, pane and digest all share."""
+    """Run one repair cycle. Returns a report the tools, pane and digest all share.
+
+    ``extra_playbooks`` win whenever one matches, ahead of every other playbook (the demo's
+    rerun for its own throwaway job, which sends nothing)."""
     started = time.time()
     # Nothing to re-open: core treats "Done" as terminal for that error signature
     # (see sources.ack), so a repeat of the SAME text stays silent and only a
     # different error raises a new incident. The page says exactly that.
     snap = sources.snapshot(job_id=job_id)
+    extras = [b for b in (playbooks._normalize(dict(p), "user") for p in (extra_playbooks or [])) if b]
     books = playbooks.all_playbooks(data_dir)
     names = {j["job_id"]: j["name"] for j in snap["jobs"]}
     report: Dict[str, Any] = {
@@ -282,7 +287,7 @@ def cycle(
                 "reason": "job no longer exists" + ("" if closed else f" — could not close: {reason}"),
             })
             continue
-        book = playbooks.match_playbook(inc, books, job_name=name)
+        book = (extras and playbooks.match_playbook(inc, extras, job_name=name)) or playbooks.match_playbook(inc, books, job_name=name)
         if book is None:
             handed = sources.mark_alerted(inc["incident_id"])
             report["escalated"].append(

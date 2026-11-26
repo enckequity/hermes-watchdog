@@ -7,7 +7,7 @@ network. It exercises the real code paths: Hermes's own cron job store, its own
 
     python scripts/proof.py
 
-Exit 0 means: the timeout incident was rerun, the next run succeeded, core's own
+Exit 0 means: the timeout incident was rerun (by a person-written playbook; no built-in reruns a job), the next run succeeded, core's own
 record moved it off `detected`, and the ledger recorded `repaired`. The script
 incident is handed off (`alerted`) rather than retried — nothing is left unhandled.
 Any other outcome exits 1 with the report printed.

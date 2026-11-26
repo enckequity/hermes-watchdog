@@ -74,9 +74,9 @@ The same things are reachable without the UI: `watchdog_status`, `watchdog_repai
 Live, on one profile with 81 scheduled jobs: an interrupted run came back as
 `health=degraded jobs=81 incidents=1`, a dry-run cycle matched it to
 `builtin-escalate-unknown` and planned exactly one step, and in a throwaway
-profile a timeout incident went `detected → resolved` after
-a person-written `rerun-on-timeout` playbook reran the job (no built-in reruns a job: a rerun can repeat its sends) and core's own execution record confirmed
-the next run succeeded. A broken scheduler script was paused and escalated
+profile a timeout incident went `detected → resolved` after a person-written
+`rerun-on-timeout` playbook reran the job and core's own execution record confirmed
+the next run succeeded. No built-in reruns a job, because a rerun can repeat its sends. A broken scheduler script was paused and escalated
 instead of retried.
 
 ### Reproduce it in one command

@@ -127,6 +127,28 @@ class CycleTests(unittest.TestCase):
             report = repair.cycle(data_dir=None)
         return report, calls
 
+    def test_builtins_alone_never_rerun_a_timed_out_job(self):
+        # #4666: with only the built-ins, a timeout is handed to a person and no run fires.
+        with patch.object(playbooks, "all_playbooks", lambda data_dir=None: [
+                b for b in (playbooks._normalize(dict(p), "builtin") for p in playbooks.BUILTIN_PLAYBOOKS) if b]):
+            report, calls = self._run(True)
+        self.assertEqual(calls, [])
+        self.assertEqual([a["playbook"] for a in report["attempts"]], ["builtin-escalate-timeout"])
+        self.assertFalse(report["repaired"])
+
+    def test_extra_playbooks_win_for_the_demo(self):
+        rerun = {"id": "demo-rerun", "match": {"job_id": "job-1"}, "steps": [{"verb": "rerun_job"}],
+                 "max_attempts_per_day": 3, "escalate_on_fail": True}
+        with patch.object(repair, "sources") as s, patch.object(repair, "ledger", self.fake_ledger), \
+                patch.object(repair, "_cron_api", lambda a, j, **kw: {"success": True}), \
+                patch.object(repair, "_verified", lambda *a: True), \
+                patch.object(playbooks, "all_playbooks", lambda data_dir=None: [
+                    b for b in (playbooks._normalize(dict(p), "builtin") for p in playbooks.BUILTIN_PLAYBOOKS) if b]):
+            s.snapshot.return_value = _jobs()
+            report = repair.cycle(data_dir=None, extra_playbooks=[rerun])
+        self.assertEqual(report["attempts"][0]["playbook"], "demo-rerun")
+        self.assertEqual(len(report["repaired"]), 1)
+
     def test_verified_repair_is_reported_as_repaired(self):
         report, calls = self._run(True)
         self.assertEqual(len(report["repaired"]), 1)
