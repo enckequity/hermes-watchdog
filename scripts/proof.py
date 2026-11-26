@@ -7,7 +7,7 @@ network. It exercises the real code paths: Hermes's own cron job store, its own
 
     python scripts/proof.py
 
-Exit 0 means: the timeout incident was rerun, the next run succeeded, core's own
+Exit 0 means: the timeout incident was rerun (by a person-written playbook; no built-in reruns a job), the next run succeeded, core's own
 record moved it off `detected`, and the ledger recorded `repaired`. The script
 incident is handed off (`alerted`) rather than retried — nothing is left unhandled.
 Any other outcome exits 1 with the report printed.
@@ -64,7 +64,14 @@ def main() -> int:
         before = [(i["id"], i["failure_type"], i["state"]) for i in incidents.list_incidents()]
         print("incidents before:", before)
 
-        report = repair.cycle(data_dir=home / "plugin-data" / "hermes-watchdog")
+        # No built-in reruns a job (a rerun can repeat its sends), so the proof uses the
+        # person-written rerun playbook a reader would add for a job that is safe to rerun.
+        data_dir = home / "plugin-data" / "hermes-watchdog"
+        (data_dir / "playbooks").mkdir(parents=True, exist_ok=True)
+        (data_dir / "playbooks" / "rerun-on-timeout.json").write_text(json.dumps({
+            "id": "rerun-on-timeout", "match": {"failure_type": "timeout"},
+            "steps": [{"verb": "rerun_job"}], "max_attempts_per_day": 3, "escalate_on_fail": True}))
+        report = repair.cycle(data_dir=data_dir)
         print("cycle  health:", report["health"], "attempts:", len(report["attempts"]))
         for attempt in report["attempts"]:
             print(f"  {attempt['playbook']} -> {attempt['outcome']} ({attempt['detail']})")

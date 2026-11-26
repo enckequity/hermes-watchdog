@@ -58,14 +58,17 @@ class PlaybookTests(unittest.TestCase):
     def test_builtins_ship_and_cover_unknown(self):
         books = playbooks.all_playbooks(None)
         ids = {b["id"] for b in books}
-        self.assertIn("builtin-rerun-timeout", ids)
+        self.assertIn("builtin-escalate-timeout", ids)
+        self.assertNotIn("builtin-rerun-timeout", ids)
         self.assertIn("builtin-escalate-unknown", ids)
 
-    def test_timeout_matches_rerun_not_pause(self):
+    def test_timeout_escalates_without_a_rerun(self):
+        # A timed-out run may already have sent part of its work; a rerun could send it twice (#4666).
         books = playbooks.all_playbooks(None)
         book = playbooks.match_playbook(_incident("timeout"), books, job_name="daily-digest")
-        self.assertEqual(book["id"], "builtin-rerun-timeout")
-        self.assertEqual([s["verb"] for s in book["steps"]], ["rerun_job"])
+        self.assertEqual(book["id"], "builtin-escalate-timeout")
+        self.assertEqual([s["verb"] for s in book["steps"]], ["escalate"])
+        self.assertFalse(any(st.get("verb") == "rerun_job" for b in books for st in b["steps"]))
 
     def test_delivery_and_agent_failures_escalate_without_a_rerun(self):
         # A rerun repeats whatever the job already sent, so these are handed to a person.
@@ -97,9 +100,19 @@ class PlaybookTests(unittest.TestCase):
         self.assertIsNone(playbooks._normalize({"id": "x", "steps": [{"verb": "nuke"}]}, "user:t.json"))
 
 
+# No built-in reruns a job any more; the rerun machinery still serves a playbook a person writes.
+PERSON_RERUN = {"id": "person-rerun-timeout", "match": {"failure_type": "timeout"},
+                "steps": [{"verb": "rerun_job"}], "max_attempts_per_day": 3, "escalate_on_fail": True}
+
+
 class CycleTests(unittest.TestCase):
     def setUp(self):
         self.fake_ledger = _FakeLedger()
+        builtins = playbooks.all_playbooks
+        person = patch.object(playbooks, "all_playbooks",
+                              lambda data_dir=None: [playbooks._normalize(dict(PERSON_RERUN), "user")] + builtins(data_dir))
+        person.start()
+        self.addCleanup(person.stop)
 
     def _run(self, verified, api=None, **kw):
         calls = []
@@ -113,6 +126,28 @@ class CycleTests(unittest.TestCase):
             s.snapshot.return_value = _jobs(**kw)
             report = repair.cycle(data_dir=None)
         return report, calls
+
+    def test_builtins_alone_never_rerun_a_timed_out_job(self):
+        # #4666: with only the built-ins, a timeout is handed to a person and no run fires.
+        with patch.object(playbooks, "all_playbooks", lambda data_dir=None: [
+                b for b in (playbooks._normalize(dict(p), "builtin") for p in playbooks.BUILTIN_PLAYBOOKS) if b]):
+            report, calls = self._run(True)
+        self.assertEqual(calls, [])
+        self.assertEqual([a["playbook"] for a in report["attempts"]], ["builtin-escalate-timeout"])
+        self.assertFalse(report["repaired"])
+
+    def test_extra_playbooks_win_for_the_demo(self):
+        rerun = {"id": "demo-rerun", "match": {"job_id": "job-1"}, "steps": [{"verb": "rerun_job"}],
+                 "max_attempts_per_day": 3, "escalate_on_fail": True}
+        with patch.object(repair, "sources") as s, patch.object(repair, "ledger", self.fake_ledger), \
+                patch.object(repair, "_cron_api", lambda a, j, **kw: {"success": True}), \
+                patch.object(repair, "_verified", lambda *a: True), \
+                patch.object(playbooks, "all_playbooks", lambda data_dir=None: [
+                    b for b in (playbooks._normalize(dict(p), "builtin") for p in playbooks.BUILTIN_PLAYBOOKS) if b]):
+            s.snapshot.return_value = _jobs()
+            report = repair.cycle(data_dir=None, extra_playbooks=[rerun])
+        self.assertEqual(report["attempts"][0]["playbook"], "demo-rerun")
+        self.assertEqual(len(report["repaired"]), 1)
 
     def test_verified_repair_is_reported_as_repaired(self):
         report, calls = self._run(True)

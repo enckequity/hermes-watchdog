@@ -74,9 +74,9 @@ The same things are reachable without the UI: `watchdog_status`, `watchdog_repai
 Live, on one profile with 81 scheduled jobs: an interrupted run came back as
 `health=degraded jobs=81 incidents=1`, a dry-run cycle matched it to
 `builtin-escalate-unknown` and planned exactly one step, and in a throwaway
-profile a timeout incident went `detected → resolved` after
-`builtin-rerun-timeout` reran the job and core's own execution record confirmed
-the next run succeeded. A broken scheduler script was paused and escalated
+profile a timeout incident went `detected → resolved` after a person-written
+`rerun-on-timeout` playbook reran the job and core's own execution record confirmed
+the next run succeeded. No built-in reruns a job, because a rerun can repeat its sends. A broken scheduler script was paused and escalated
 instead of retried.
 
 ### Reproduce it in one command
@@ -90,7 +90,7 @@ $ python scripts/proof.py
 run 1  last_status: error
 incidents before: [('…f601', 'timeout', 'detected'), ('…8643', 'script', 'detected')]
 cycle  health: degraded attempts: 2
-  builtin-rerun-timeout -> repaired (core marked it resolved at 06:00 — Hermes's own run record)
+  rerun-on-timeout -> repaired (core marked it resolved at 06:00 — Hermes's own run record)
     rerun_job ok=True reran the job: succeeded
   builtin-escalate-script -> escalated (handed to the operator (core incident marked alerted))
     pause_job ok=True paused

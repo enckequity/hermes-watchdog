@@ -38,8 +38,8 @@ not a repair.
 
 ## Playbooks
 
-Built-ins exist for the failure types core classifies (rerun once on timeout;
-escalate on delivery and agent failures, because a rerun repeats the job's sends;
+Built-ins exist for the failure types core classifies (escalate on timeout,
+delivery and agent failures, because a rerun repeats the job's sends;
 pause+escalate on script; escalate on auth/config/unknown). `watchdog_runbooks`
 lists them. Saving a playbook through the tool is turned off: a person adds a
 playbook file to the plugin's `playbooks/` folder, and it wins at equal

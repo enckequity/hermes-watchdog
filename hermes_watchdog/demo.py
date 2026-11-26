@@ -129,7 +129,11 @@ def run(data_dir: Optional[Path] = None) -> Dict[str, Any]:
         report["incident_id"] = incident_id
 
         # 2. The real repair cycle, scoped to this one job and nothing else.
-        cycle = repair.cycle(job_id=job_id, data_dir=data_dir, max_incidents=1)
+        # No built-in reruns a job (a rerun can repeat its sends). The demo job only
+        # writes a local file, so it brings its own rerun playbook, scoped to its id.
+        rerun = {"id": "demo-rerun", "match": {"job_id": job_id}, "steps": [{"verb": "rerun_job"}],
+                 "max_attempts_per_day": 3, "escalate_on_fail": True}
+        cycle = repair.cycle(job_id=job_id, data_dir=data_dir, max_incidents=1, extra_playbooks=[rerun])
         attempt = (cycle.get("attempts") or [{}])[0]
         report["outcome"] = attempt.get("outcome") or ("repaired" if cycle.get("repaired") else "")
         report["detail"] = attempt.get("detail") or ""
