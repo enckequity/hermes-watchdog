@@ -23,8 +23,10 @@ Supported verbs (all bounded, all reversible):
 
 Playbooks live in ``<plugin data dir>/playbooks/*.json`` — one playbook per file,
 written by the user or the agent. Built-ins cover the failure types core already
-classifies and are deliberately timid: rerun once where a rerun is plausibly the
-fix, escalate where it is not. User playbooks win over built-ins on an equal
+classifies and are deliberately timid: they never rerun a job, because a rerun can
+repeat whatever the job already sent (a timed-out run may have sent part of its
+work); they escalate, or pause and escalate a broken script. ``rerun_job`` is for
+a playbook a person writes for a job that is safe to rerun. User playbooks win over built-ins on an equal
 match.
 """
 
@@ -75,12 +77,12 @@ def tool_playbook_error(raw: Dict[str, Any]) -> Optional[str]:
 
 BUILTIN_PLAYBOOKS: List[Dict[str, Any]] = [
     {
-        "id": "builtin-rerun-timeout",
+        "id": "builtin-escalate-timeout",
         "source": "builtin",
-        "description": "Timeouts are usually transient on a loaded host: rerun once.",
+        "description": "A run that timed out may already have sent part of its work, so a rerun could send it twice: escalate.",
         "match": {"failure_type": "timeout"},
-        "steps": [{"verb": "rerun_job"}],
-        "max_attempts_per_day": 3,
+        "steps": [{"verb": "escalate"}],
+        "max_attempts_per_day": 1,
         "escalate_on_fail": True,
     },
     {
