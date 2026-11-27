@@ -14,7 +14,7 @@ import time
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
@@ -402,6 +402,19 @@ class AgentHandoffTests(unittest.TestCase):
     def test_handoff_without_a_job_is_refused_not_guessed(self):
         self.assertFalse(handoff.hand_off({"incident_id": "i1", "job_id": ""})["ok"])
 
+    def test_handoff_escalates_and_never_runs_the_job(self):
+        # A manual run fires the job's stored prompt and normal delivery, so it could resend.
+        cron_tools = MagicMock()
+        with patch.dict(sys.modules, {"tools": MagicMock(), "tools.cronjob_tools": cron_tools}), \
+                patch.object(handoff.sources, "mark_alerted", return_value=True) as mark:
+            result = handoff.hand_off({"incident_id": "i1", "job_id": "job-1", "job_name": "digest"})
+        cron_tools.cronjob.assert_not_called()
+        mark.assert_called_once_with("i1")
+        self.assertTrue(result["ok"])
+        self.assertFalse(result["started"])
+        self.assertTrue(result["recorded"])
+        self.assertIn("digest", result["prompt"])
+
 
 
 class CycleStampTests(unittest.TestCase):
@@ -607,7 +620,7 @@ class HandoffTests(unittest.TestCase):
         self.assertEqual(snap["counts"]["open_incidents"], 2)
         self.assertEqual(snap["counts"]["needs_you"], 1)
         self.assertEqual(snap["incidents"][0]["detail"]["action"], "repair")
-        self.assertIn("Ask Hermes", snap["incidents"][0]["detail"]["next"])
+        self.assertIn("Get a fix-it note", snap["incidents"][0]["detail"]["next"])
 
     def test_watchdogs_own_check_is_not_something_that_needs_you(self):
         # A restart makes Watchdog's own check trip. Counting that as work for a

@@ -11,9 +11,10 @@ Three things it does that a prompt or a skill cannot:
 
 - **Proves the repair.** A fix counts only when Hermes's own incident and execution
   records agree it worked — the plugin cannot claim success for itself.
-- **Asks the agent, not you.** When a repair would be a guess, one button hands the
-  job to Hermes with the failure and its output attached, and the agent's answer
-  lands in your chat.
+- **Asks the agent, not you.** When a repair would be a guess, one button writes a
+  note for Hermes with the failure and its output attached; paste it into a chat and
+  the agent diagnoses there. The button never reruns the job, so nothing it sends
+  goes out twice.
 - **Stays bounded.** Four verbs (rerun, pause, check, escalate), a daily attempt
   budget per incident, and no arbitrary shell — it cannot become a second failure
   mode.
@@ -57,7 +58,7 @@ The page answers one question: is everything fine?
 | What you see | What you do |
 | --- | --- |
 | **Everything is running as it should.** | Nothing. Repairs already ran and were verified against Hermes's own run record. |
-| **One thing needs you.** | Read one sentence about it. If you want it fixed, press **Ask Hermes to fix it** — Watchdog hands the job to the agent with the failure, the run's output and an instruction to diagnose rather than re-run. Its answer arrives in your chat. |
+| **One thing needs you.** | Read one sentence about it. If you want it fixed, press **Get a fix-it note** — Watchdog marks the issue handed to you and copies a note with the failure, the run's output and an instruction to diagnose rather than re-run. Paste it into a chat with Hermes. The job is not run again. |
 | **Done** | Hides that issue for good. Hermes treats the ack as final for that exact error on that job, so the same text stays silent; a *different* failure comes back as a new row. |
 | A row of dots | That job's last five runs. Green finished, red failed, amber cancelled. One red dot and four greens is a blip; five reds is a real fault. |
 

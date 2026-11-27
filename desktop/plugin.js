@@ -405,7 +405,7 @@ function IssueCard({ group, onAsk, onAck, busy }) {
                 onClick: () => onAsk(incident),
                 size: 'xs',
                 variant: 'default',
-                children: busy ? 'Asking Hermes…' : 'Ask Hermes to fix it'
+                children: busy ? 'Preparing…' : 'Get a fix-it note'
               }),
           clearOnly
             ? null
@@ -627,10 +627,14 @@ function WatchdogBody({ ctx, compact }) {
       .rest('/handoff', { body: { incident_id: incident.incident_id }, method: 'POST' })
       .catch(thrown => ({ ok: false, error: String(thrown) }))
     setBusyId(null)
+    const copied = result && result.ok && navigator.clipboard
+      ? await navigator.clipboard.writeText(result.prompt || '').then(() => true, () => false)
+      : false
     setOutcome(result && result.ok
       ? { at: Date.now(), tone: 'good',
-          text: 'Hermes is on it — it is diagnosing that job now, and its answer arrives here as a message.',
-          next: 'Nothing else is needed from you.' }
+          text: 'The job was not run again: a rerun could send what it already sent. '
+            + (copied ? 'A fix-it note is copied — paste it into a chat with Hermes.' : 'Paste this note into a chat with Hermes:'),
+          next: result.prompt || '' }
       : { at: Date.now(), tone: 'warn',
           text: String((result && result.error) || '').includes('404')
             ? 'This needs one gateway restart to load (the button is new in this version).'
