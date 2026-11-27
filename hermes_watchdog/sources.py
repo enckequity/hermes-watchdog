@@ -289,7 +289,7 @@ def explain_incident(
     nxt = (
         "Press Clear. It only hides this row; nothing about your jobs changes."
         if action == "clear"
-        else "Press Ask Hermes to fix it. If you have already dealt with it yourself, press Done."
+        else "Press Get a fix-it note and paste it into a chat. If you have already dealt with it yourself, press Done."
     )
     return {"action": action, "next": nxt, "summary": summary, "what": what, "tried": tried,
             "why": why, "steps": steps,

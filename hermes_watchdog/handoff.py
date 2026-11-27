@@ -1,19 +1,18 @@
-"""Hand an incident to the agent, so the user never has to read a command.
+"""Hand an incident to the person with a note the agent can act on.
 
-The page's primary action is "Ask Hermes to fix it": this builds a prompt with the
-context Watchdog already has and fires the failing job through Hermes's own cron
-tool with that prompt as transient per-fire context. The agent then diagnoses the
-real cause inside a normal turn, and its answer re-enters the conversation. No new
-tool surface, no shell of our own.
+The page's primary action builds a diagnose-and-fix note from the context Watchdog
+already has and marks the incident handed over in Hermes's own lifecycle. It never
+fires the job: a manual run executes the job's stored prompt and its normal
+delivery, so whatever the job sends could go out a second time. The person pastes
+the note into a chat, and the agent diagnoses there. No new tool surface, no shell
+of our own.
 """
 
 from __future__ import annotations
 
-import json
-import logging
 from typing import Any, Dict, Optional
 
-log = logging.getLogger(__name__)
+from . import sources
 
 
 def build_prompt(incident: Dict[str, Any], job: Optional[Dict[str, Any]] = None) -> str:
@@ -54,18 +53,10 @@ def build_prompt(incident: Dict[str, Any], job: Optional[Dict[str, Any]] = None)
 
 
 def hand_off(incident: Dict[str, Any], job: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-    """Fire the failing job once, with the diagnose-and-fix prompt attached."""
+    """Escalate the incident with the diagnose-and-fix note; never run the job."""
     job_id = str(incident.get("job_id") or "")
     if not job_id:
         return {"ok": False, "error": "this incident has no job left to run"}
-    prompt = build_prompt(incident, job)
-    try:
-        from tools.cronjob_tools import cronjob
-        raw = cronjob(action="run", job_id=job_id, prompt=prompt)
-        result = json.loads(raw) if isinstance(raw, str) else (raw or {})
-    except Exception as exc:  # noqa: BLE001 - report, never raise
-        log.debug("watchdog: hand-off failed: %s", exc)
-        return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
-    if not result.get("success"):
-        return {"ok": False, "error": str(result.get("error") or "the run was refused")}
-    return {"ok": True, "job_id": job_id, "started": True}
+    recorded = sources.mark_alerted(str(incident.get("incident_id") or ""))
+    return {"ok": True, "job_id": job_id, "started": False, "recorded": recorded,
+            "prompt": build_prompt(incident, job)}
